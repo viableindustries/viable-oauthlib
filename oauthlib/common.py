@@ -131,9 +131,14 @@ def urldecode(query):
     a ValueError will be raised. urllib.parse_qsl will only raise errors if
     any of name-value pairs omits the equals sign.
     """
+    #
+    # @todo
+    #
+    # This entirely breaks our JSON based search system. Beware!!!!
+    #
     # Check if query contains invalid characters
-    if query and not set(query) <= urlencoded:
-        raise ValueError('Not a valid urlencoded string.')
+    # if query and not set(query) <= urlencoded:
+    #   raise ValueError('Not a valid urlencoded string.')
 
     # Check for correctly hex encoded values using a regular expression
     # All encoded values begin with % followed by two hex characters
