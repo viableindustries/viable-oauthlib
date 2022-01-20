@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
-from ....unittest import TestCase
 
 import datetime
+
 from oauthlib import common
+from oauthlib.oauth2 import Client, InsecureTransportError
 from oauthlib.oauth2.rfc6749 import utils
-from oauthlib.oauth2 import Client
-from oauthlib.oauth2.rfc6749.clients import AUTH_HEADER, URI_QUERY, BODY
+from oauthlib.oauth2.rfc6749.clients import AUTH_HEADER, BODY, URI_QUERY
+
+from ....unittest import TestCase
 
 
 class ClientTest(TestCase):
@@ -158,3 +160,80 @@ class ClientTest(TestCase):
         self.assertEqual(uri, self.uri)
         self.assertEqual(body, self.body)
         self.assertEqual(headers, self.mac_01_header)
+
+
+    def test_revocation_request(self):
+        client = Client(self.client_id)
+
+        url = 'https://example.com/revoke'
+        token = 'foobar'
+
+        # Valid request
+        u, h, b = client.prepare_token_revocation_request(url, token)
+        self.assertEqual(u, url)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertEqual(b, 'token=%s&token_type_hint=access_token' % token)
+
+        # Non-HTTPS revocation endpoint
+        self.assertRaises(InsecureTransportError,
+                          client.prepare_token_revocation_request,
+                          'http://example.com/revoke', token)
+
+
+        u, h, b = client.prepare_token_revocation_request(
+            url, token, token_type_hint='refresh_token')
+        self.assertEqual(u, url)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertEqual(b, 'token=%s&token_type_hint=refresh_token' % token)
+
+        # JSONP
+        u, h, b = client.prepare_token_revocation_request(
+            url, token, callback='hello.world')
+        self.assertURLEqual(u, url + '?callback=hello.world&token=%s&token_type_hint=access_token' % token)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertEqual(b, '')
+
+    def test_prepare_authorization_request(self):
+        redirect_url = 'https://example.com/callback/'
+        scopes = 'read'
+        auth_url = 'https://example.com/authorize/'
+        state = 'fake_state'
+
+        client = Client(self.client_id, redirect_url=redirect_url, scope=scopes, state=state)
+
+        # Non-HTTPS
+        self.assertRaises(InsecureTransportError,
+                          client.prepare_authorization_request, 'http://example.com/authorize/')
+
+        # NotImplementedError
+        self.assertRaises(NotImplementedError, client.prepare_authorization_request, auth_url)
+
+    def test_prepare_refresh_token_request(self):
+        client = Client(self.client_id)
+
+        url = 'https://example.com/revoke'
+        token = 'foobar'
+        scope = 'extra_scope'
+
+        u, h, b = client.prepare_refresh_token_request(url, token)
+        self.assertEqual(u, url)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertFormBodyEqual(b, 'grant_type=refresh_token&refresh_token=%s' % token)
+
+        # Non-HTTPS revocation endpoint
+        self.assertRaises(InsecureTransportError,
+                          client.prepare_refresh_token_request,
+                          'http://example.com/revoke', token)
+
+        # provide extra scope
+        u, h, b = client.prepare_refresh_token_request(url, token, scope=scope)
+        self.assertEqual(u, url)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertFormBodyEqual(b, 'grant_type=refresh_token&scope=%s&refresh_token=%s' % (scope, token))
+
+        # provide scope while init
+        client = Client(self.client_id, scope=scope)
+        u, h, b = client.prepare_refresh_token_request(url, token, scope=scope)
+        self.assertEqual(u, url)
+        self.assertEqual(h, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertFormBodyEqual(b, 'grant_type=refresh_token&scope=%s&refresh_token=%s' % (scope, token))

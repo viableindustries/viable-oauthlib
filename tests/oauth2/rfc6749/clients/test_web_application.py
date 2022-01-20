@@ -2,17 +2,16 @@
 from __future__ import absolute_import, unicode_literals
 
 import datetime
+import os
 
 from mock import patch
 
-from oauthlib import common
-from oauthlib.oauth2.rfc6749 import utils, errors
-from oauthlib.oauth2 import Client
-from oauthlib.oauth2 import WebApplicationClient
-from oauthlib.oauth2 import MobileApplicationClient
-from oauthlib.oauth2 import LegacyApplicationClient
-from oauthlib.oauth2 import BackendApplicationClient
-from oauthlib.oauth2.rfc6749.clients import AUTH_HEADER, URI_QUERY, BODY
+from oauthlib import common, signals
+from oauthlib.oauth2 import (BackendApplicationClient, Client,
+                             LegacyApplicationClient, MobileApplicationClient,
+                             WebApplicationClient)
+from oauthlib.oauth2.rfc6749 import errors, utils
+from oauthlib.oauth2.rfc6749.clients import AUTH_HEADER, BODY, URI_QUERY
 
 from ....unittest import TestCase
 
@@ -34,6 +33,7 @@ class WebApplicationClientTest(TestCase):
         "require": "extra arguments"
     }
     uri_kwargs = uri_id + "&some=providers&require=extra+arguments"
+    uri_authorize_code = uri_redirect + "&scope=%2Fprofile&state=" + state
 
     code = "zzzzaaaa"
     body = "not=empty"
@@ -117,6 +117,25 @@ class WebApplicationClientTest(TestCase):
                 self.response_uri,
                 state="invalid")
 
+    def test_populate_attributes(self):
+
+        client = WebApplicationClient(self.client_id)
+
+        response_uri = (self.response_uri +
+                        "&access_token=EVIL-TOKEN"
+                        "&refresh_token=EVIL-TOKEN"
+                        "&mac_key=EVIL-KEY")
+
+        client.parse_request_uri_response(response_uri, self.state)
+
+        self.assertEqual(client.code, self.code)
+
+        # We must not accidentally pick up any further security
+        # credentials at this point.
+        self.assertIsNone(client.access_token)
+        self.assertIsNone(client.refresh_token)
+        self.assertIsNone(client.mac_key)
+
     def test_parse_token_response(self):
         client = WebApplicationClient(self.client_id)
 
@@ -129,3 +148,32 @@ class WebApplicationClientTest(TestCase):
 
         # Mismatching state
         self.assertRaises(Warning, client.parse_request_body_response, self.token_json, scope="invalid")
+        os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE'] = '1'
+        token = client.parse_request_body_response(self.token_json, scope="invalid")
+        self.assertTrue(token.scope_changed)
+
+        scope_changes_recorded = []
+        def record_scope_change(sender, message, old, new):
+            scope_changes_recorded.append((message, old, new))
+
+        signals.scope_changed.connect(record_scope_change)
+        try:
+            client.parse_request_body_response(self.token_json, scope="invalid")
+            self.assertEqual(len(scope_changes_recorded), 1)
+            message, old, new = scope_changes_recorded[0]
+            self.assertEqual(message, 'Scope has changed from "invalid" to "/profile".')
+            self.assertEqual(old, ['invalid'])
+            self.assertEqual(new, ['/profile'])
+        finally:
+            signals.scope_changed.disconnect(record_scope_change)
+        del os.environ['OAUTHLIB_RELAX_TOKEN_SCOPE']
+
+    def test_prepare_authorization_requeset(self):
+        client = WebApplicationClient(self.client_id)
+
+        url, header, body = client.prepare_authorization_request(
+            self.uri, redirect_url=self.redirect_uri, state=self.state, scope=self.scope)
+        self.assertURLEqual(url, self.uri_authorize_code)
+        # verify default header and body only
+        self.assertEqual(header, {'Content-Type': 'application/x-www-form-urlencoded'})
+        self.assertEqual(body, '')

@@ -1,20 +1,25 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
+from oauthlib.common import unicode_type
+from oauthlib.oauth1.rfc5849.signature import (collect_parameters,
+                                               construct_base_string,
+                                               normalize_base_string_uri,
+                                               normalize_parameters,
+                                               sign_hmac_sha1,
+                                               sign_hmac_sha1_with_client,
+                                               sign_plaintext,
+                                               sign_plaintext_with_client,
+                                               sign_rsa_sha1,
+                                               sign_rsa_sha1_with_client)
+
+from ...unittest import TestCase
+
 try:
     from urllib import quote
 except ImportError:
     from urllib.parse import quote
 
-from oauthlib.oauth1.rfc5849.signature import collect_parameters
-from oauthlib.oauth1.rfc5849.signature import construct_base_string
-from oauthlib.oauth1.rfc5849.signature import normalize_base_string_uri
-from oauthlib.oauth1.rfc5849.signature import normalize_parameters
-from oauthlib.oauth1.rfc5849.signature import sign_hmac_sha1, sign_hmac_sha1_with_client
-from oauthlib.oauth1.rfc5849.signature import sign_rsa_sha1, sign_rsa_sha1_with_client
-from oauthlib.oauth1.rfc5849.signature import sign_plaintext, sign_plaintext_with_client
-from oauthlib.common import unicode_type
-from ...unittest import TestCase
 
 
 class SignatureTests(TestCase):
@@ -142,13 +147,13 @@ class SignatureTests(TestCase):
 
         # test a URI with the default port
         uri = "http://www.example.com:80/"
-        self.assertEquals(normalize_base_string_uri(uri),
-                          "http://www.example.com/")
+        self.assertEqual(normalize_base_string_uri(uri),
+                         "http://www.example.com/")
 
         # test a URI missing a path
         uri = "http://www.example.com"
-        self.assertEquals(normalize_base_string_uri(uri),
-                          "http://www.example.com/")
+        self.assertEqual(normalize_base_string_uri(uri),
+                         "http://www.example.com/")
 
         # test a relative URI
         uri = "/a-host-relative-uri"
@@ -158,14 +163,14 @@ class SignatureTests(TestCase):
         # test overriding the URI's netloc with a host argument
         uri = "http://www.example.com/a-path"
         host = "alternatehost.example.com"
-        self.assertEquals(normalize_base_string_uri(uri, host),
-                          "http://alternatehost.example.com/a-path")
+        self.assertEqual(normalize_base_string_uri(uri, host),
+                         "http://alternatehost.example.com/a-path")
 
     def test_collect_parameters(self):
         """We check against parameters multiple times in case things change
         after more parameters are added.
         """
-        self.assertEquals(collect_parameters(), [])
+        self.assertEqual(collect_parameters(), [])
 
         # Check against uri_query
         parameters = collect_parameters(uri_query=self.uri_query)
@@ -241,8 +246,8 @@ class SignatureTests(TestCase):
         sign = sign_hmac_sha1(self.control_base_string,
                               self.client_secret.decode('utf-8'),
                               self.resource_owner_secret.decode('utf-8'))
-        self.assertEquals(len(sign), 28)
-        self.assertEquals(sign, self.control_signature)
+        self.assertEqual(len(sign), 28)
+        self.assertEqual(sign, self.control_signature)
 
     def test_sign_hmac_sha1_with_client(self):
         self.assertRaises(ValueError,
@@ -254,8 +259,8 @@ class SignatureTests(TestCase):
         sign = sign_hmac_sha1_with_client(
             self.control_base_string, self.client)
 
-        self.assertEquals(len(sign), 28)
-        self.assertEquals(sign, self.control_signature)
+        self.assertEqual(len(sign), 28)
+        self.assertEqual(sign, self.control_signature)
 
 
     control_base_string_rsa_sha1 = (
@@ -269,31 +274,25 @@ class SignatureTests(TestCase):
         b"th_nonce%253D%25227d8f3e4a%2522%252Coauth_signature"
         b"%253D%2522bYT5CMsGcbgUdFHObYMEfcx6bsw%25253D%2522")
 
-    @property
-    def rsa_private_key(self):
-        # Generated using: $ openssl genrsa -out <key>.pem 1024
-        # PyCrypto / python-rsa requires the key to be concatenated with
-        # linebreaks.
-        return (
-            b"-----BEGIN RSA PRIVATE KEY-----\nMIICXgIBAAKBgQDk1/bxy"
-            b"S8Q8jiheHeYYp/4rEKJopeQRRKKpZI4s5i+UPwVpupG\nAlwXWfzXw"
-            b"SMaKPAoKJNdu7tqKRniqst5uoHXw98gj0x7zamu0Ck1LtQ4c7pFMVa"
-            b"h\n5IYGhBi2E9ycNS329W27nJPWNCbESTu7snVlG8V8mfvGGg3xNjT"
-            b"MO7IdrwIDAQAB\nAoGBAOQ2KuH8S5+OrsL4K+wfjoCi6MfxCUyqVU9"
-            b"GxocdM1m30WyWRFMEz2nKJ8fR\np3vTD4w8yplTOhcoXdQZl0kRoaD"
-            b"zrcYkm2VvJtQRrX7dKFT8dR8D/Tr7dNQLOXfC\nDY6xveQczE7qt7V"
-            b"k7lp4FqmxBsaaEuokt78pOOjywZoInjZhAkEA9wz3zoZNT0/i\nrf6"
-            b"qv2qTIeieUB035N3dyw6f1BGSWYaXSuerDCD/J1qZbAPKKhyHZbVaw"
-            b"Ft3UMhe\n542UftBaxQJBAO0iJy1I8GQjGnS7B3yvyH3CcLYGy296+"
-            b"XO/2xKp/d/ty1OIeovx\nC60pLNwuFNF3z9d2GVQAdoQ89hUkOtjZL"
-            b"eMCQQD0JO6oPHUeUjYT+T7ImAv7UKVT\nSuy30sKjLzqoGw1kR+wv7"
-            b"C5PeDRvscs4wa4CW9s6mjSrMDkDrmCLuJDtmf55AkEA\nkmaMg2PNr"
-            b"jUR51F0zOEFycaaqXbGcFwe1/xx9zLmHzMDXd4bsnwt9kk+fe0hQzV"
-            b"S\nJzatanQit3+feev1PN3QewJAWv4RZeavEUhKv+kLe95Yd0su7lT"
-            b"LVduVgh4v5yLT\nGa6FHdjGPcfajt+nrpB1n8UQBEH9ZxniokR/IPv"
-            b"dMlxqXA==\n-----END RSA PRIVATE KEY-----"
-        )
-
+    # Generated using: $ openssl genrsa -out <key>.pem 1024
+    # PEM encoding requires the key to be concatenated with
+    # linebreaks.
+    rsa_private_key = b"""-----BEGIN RSA PRIVATE KEY-----
+MIICXgIBAAKBgQDk1/bxyS8Q8jiheHeYYp/4rEKJopeQRRKKpZI4s5i+UPwVpupG
+AlwXWfzXwSMaKPAoKJNdu7tqKRniqst5uoHXw98gj0x7zamu0Ck1LtQ4c7pFMVah
+5IYGhBi2E9ycNS329W27nJPWNCbESTu7snVlG8V8mfvGGg3xNjTMO7IdrwIDAQAB
+AoGBAOQ2KuH8S5+OrsL4K+wfjoCi6MfxCUyqVU9GxocdM1m30WyWRFMEz2nKJ8fR
+p3vTD4w8yplTOhcoXdQZl0kRoaDzrcYkm2VvJtQRrX7dKFT8dR8D/Tr7dNQLOXfC
+DY6xveQczE7qt7Vk7lp4FqmxBsaaEuokt78pOOjywZoInjZhAkEA9wz3zoZNT0/i
+rf6qv2qTIeieUB035N3dyw6f1BGSWYaXSuerDCD/J1qZbAPKKhyHZbVawFt3UMhe
+542UftBaxQJBAO0iJy1I8GQjGnS7B3yvyH3CcLYGy296+XO/2xKp/d/ty1OIeovx
+C60pLNwuFNF3z9d2GVQAdoQ89hUkOtjZLeMCQQD0JO6oPHUeUjYT+T7ImAv7UKVT
+Suy30sKjLzqoGw1kR+wv7C5PeDRvscs4wa4CW9s6mjSrMDkDrmCLuJDtmf55AkEA
+kmaMg2PNrjUR51F0zOEFycaaqXbGcFwe1/xx9zLmHzMDXd4bsnwt9kk+fe0hQzVS
+JzatanQit3+feev1PN3QewJAWv4RZeavEUhKv+kLe95Yd0su7lTLVduVgh4v5yLT
+Ga6FHdjGPcfajt+nrpB1n8UQBEH9ZxniokR/IPvdMlxqXA==
+-----END RSA PRIVATE KEY-----
+"""
     @property
     def control_signature_rsa_sha1(self):
         # Base string saved in "<message>". Signature obtained using:
@@ -315,9 +314,9 @@ class SignatureTests(TestCase):
         control_signature = self.control_signature_rsa_sha1
 
         sign = sign_rsa_sha1(base_string, private_key)
-        self.assertEquals(sign, control_signature)
+        self.assertEqual(sign, control_signature)
         sign = sign_rsa_sha1(base_string.decode('utf-8'), private_key)
-        self.assertEquals(sign, control_signature)
+        self.assertEqual(sign, control_signature)
 
 
     def test_sign_rsa_sha1_with_client(self):
@@ -329,13 +328,13 @@ class SignatureTests(TestCase):
 
         sign = sign_rsa_sha1_with_client(base_string, self.client)
 
-        self.assertEquals(sign, control_signature)
+        self.assertEqual(sign, control_signature)
 
         self.client.decode() ## Decode `rsa_private_key` from UTF-8
 
         sign = sign_rsa_sha1_with_client(base_string, self.client)
 
-        self.assertEquals(sign, control_signature)
+        self.assertEqual(sign, control_signature)
 
 
     control_signature_plaintext = (
@@ -349,7 +348,7 @@ class SignatureTests(TestCase):
                           self.resource_owner_secret)
         sign = sign_plaintext(self.client_secret.decode('utf-8'),
                               self.resource_owner_secret.decode('utf-8'))
-        self.assertEquals(sign, self.control_signature_plaintext)
+        self.assertEqual(sign, self.control_signature_plaintext)
 
 
     def test_sign_plaintext_with_client(self):
@@ -360,5 +359,4 @@ class SignatureTests(TestCase):
 
         sign = sign_plaintext_with_client(None, self.client)
 
-        self.assertEquals(sign, self.control_signature_plaintext)
-
+        self.assertEqual(sign, self.control_signature_plaintext)

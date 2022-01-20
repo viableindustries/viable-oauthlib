@@ -5,25 +5,31 @@ oauthlib.oauth2.rfc6749.parameters
 
 This module contains methods related to `Section 4`_ of the OAuth 2 RFC.
 
-.. _`Section 4`: http://tools.ietf.org/html/rfc6749#section-4
+.. _`Section 4`: https://tools.ietf.org/html/rfc6749#section-4
 """
 from __future__ import absolute_import, unicode_literals
 
 import json
+import os
 import time
+
+from oauthlib.common import add_params_to_qs, add_params_to_uri, unicode_type
+from oauthlib.signals import scope_changed
+
+from .errors import (InsecureTransportError, MismatchingStateError,
+                     MissingCodeError, MissingTokenError,
+                     MissingTokenTypeError, raise_from_error)
+from .tokens import OAuth2Token
+from .utils import is_secure_transport, list_to_scope, scope_to_list
+
 try:
     import urlparse
 except ImportError:
     import urllib.parse as urlparse
-from oauthlib.common import add_params_to_uri, add_params_to_qs, unicode_type
-from .errors import raise_from_error, MissingTokenError, MissingTokenTypeError
-from .errors import MismatchingStateError, MissingCodeError
-from .errors import InsecureTransportError
-from .utils import list_to_scope, scope_to_list, is_secure_transport
 
 
 def prepare_grant_uri(uri, client_id, response_type, redirect_uri=None,
-            scope=None, state=None, **kwargs):
+                      scope=None, state=None, **kwargs):
     """Prepare the authorization grant request URI.
 
     The client constructs the request URI by adding the following
@@ -55,11 +61,11 @@ def prepare_grant_uri(uri, client_id, response_type, redirect_uri=None,
             &redirect_uri=https%3A%2F%2Fclient%2Eexample%2Ecom%2Fcb HTTP/1.1
         Host: server.example.com
 
-    .. _`W3C.REC-html401-19991224`: http://tools.ietf.org/html/rfc6749#ref-W3C.REC-html401-19991224
-    .. _`Section 2.2`: http://tools.ietf.org/html/rfc6749#section-2.2
-    .. _`Section 3.1.2`: http://tools.ietf.org/html/rfc6749#section-3.1.2
-    .. _`Section 3.3`: http://tools.ietf.org/html/rfc6749#section-3.3
-    .. _`section 10.12`: http://tools.ietf.org/html/rfc6749#section-10.12
+    .. _`W3C.REC-html401-19991224`: https://tools.ietf.org/html/rfc6749#ref-W3C.REC-html401-19991224
+    .. _`Section 2.2`: https://tools.ietf.org/html/rfc6749#section-2.2
+    .. _`Section 3.1.2`: https://tools.ietf.org/html/rfc6749#section-3.1.2
+    .. _`Section 3.3`: https://tools.ietf.org/html/rfc6749#section-3.3
+    .. _`section 10.12`: https://tools.ietf.org/html/rfc6749#section-10.12
     """
     if not is_secure_transport(uri):
         raise InsecureTransportError()
@@ -105,7 +111,7 @@ def prepare_token_request(grant_type, body='', **kwargs):
         grant_type=authorization_code&code=SplxlOBeZQQYbYS6WxSbIA
         &redirect_uri=https%3A%2F%2Fclient%2Eexample%2Ecom%2Fcb
 
-    .. _`Section 4.1.1`: http://tools.ietf.org/html/rfc6749#section-4.1.1
+    .. _`Section 4.1.1`: https://tools.ietf.org/html/rfc6749#section-4.1.1
     """
     params = [('grant_type', grant_type)]
 
@@ -117,6 +123,60 @@ def prepare_token_request(grant_type, body='', **kwargs):
             params.append((unicode_type(k), kwargs[k]))
 
     return add_params_to_qs(body, params)
+
+
+def prepare_token_revocation_request(url, token, token_type_hint="access_token",
+        callback=None, body='', **kwargs):
+    """Prepare a token revocation request.
+
+    The client constructs the request by including the following parameters
+    using the "application/x-www-form-urlencoded" format in the HTTP request
+    entity-body:
+
+    token   REQUIRED.  The token that the client wants to get revoked.
+
+    token_type_hint  OPTIONAL.  A hint about the type of the token submitted
+    for revocation.  Clients MAY pass this parameter in order to help the
+    authorization server to optimize the token lookup.  If the server is unable
+    to locate the token using the given hint, it MUST extend its search across
+    all of its supported token types.  An authorization server MAY ignore this
+    parameter, particularly if it is able to detect the token type
+    automatically.  This specification defines two such values:
+
+        * access_token: An access token as defined in [RFC6749],
+             `Section 1.4`_
+
+        * refresh_token: A refresh token as defined in [RFC6749],
+             `Section 1.5`_
+
+        Specific implementations, profiles, and extensions of this
+        specification MAY define other values for this parameter using the
+        registry defined in `Section 4.1.2`_.
+
+    .. _`Section 1.4`: https://tools.ietf.org/html/rfc6749#section-1.4
+    .. _`Section 1.5`: https://tools.ietf.org/html/rfc6749#section-1.5
+    .. _`Section 4.1.2`: https://tools.ietf.org/html/rfc7009#section-4.1.2
+
+    """
+    if not is_secure_transport(url):
+        raise InsecureTransportError()
+
+    params = [('token', token)]
+
+    if token_type_hint:
+        params.append(('token_type_hint', token_type_hint))
+
+    for k in kwargs:
+        if kwargs[k]:
+            params.append((unicode_type(k), kwargs[k]))
+
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+    if callback:
+        params.append(('callback', callback))
+        return add_params_to_uri(url, params), headers, body
+    else:
+        return url, headers, add_params_to_qs(body, params)
 
 
 def parse_authorization_code_response(uri, state=None):
@@ -228,7 +288,8 @@ def parse_implicit_response(uri, state=None, scope=None):
     if state and params.get('state', None) != state:
         raise ValueError("Mismatching or missing state in params.")
 
-    validate_token_parameters(params, scope)
+    params = OAuth2Token(params, old_scope=scope)
+    validate_token_parameters(params)
     return params
 
 
@@ -287,24 +348,39 @@ def parse_token_response(body, scope=None):
             "example_parameter":"example_value"
         }
 
-    .. _`Section 7.1`: http://tools.ietf.org/html/rfc6749#section-7.1
-    .. _`Section 6`: http://tools.ietf.org/html/rfc6749#section-6
-    .. _`Section 3.3`: http://tools.ietf.org/html/rfc6749#section-3.3
-    .. _`RFC4627`: http://tools.ietf.org/html/rfc4627
+    .. _`Section 7.1`: https://tools.ietf.org/html/rfc6749#section-7.1
+    .. _`Section 6`: https://tools.ietf.org/html/rfc6749#section-6
+    .. _`Section 3.3`: https://tools.ietf.org/html/rfc6749#section-3.3
+    .. _`RFC4627`: https://tools.ietf.org/html/rfc4627
     """
-    params = json.loads(body)
+    try:
+        params = json.loads(body)
+    except ValueError:
+
+        # Fall back to URL-encoded string, to support old implementations,
+        # including (at time of writing) Facebook. See:
+        #   https://github.com/oauthlib/oauthlib/issues/267
+
+        params = dict(urlparse.parse_qsl(body))
+        for key in ('expires_in', 'expires'):
+            if key in params:  # cast a couple things to int
+                params[key] = int(params[key])
 
     if 'scope' in params:
         params['scope'] = scope_to_list(params['scope'])
 
+    if 'expires' in params:
+        params['expires_in'] = params.pop('expires')
+
     if 'expires_in' in params:
         params['expires_at'] = time.time() + int(params['expires_in'])
 
-    validate_token_parameters(params, scope)
+    params = OAuth2Token(params, old_scope=scope)
+    validate_token_parameters(params)
     return params
 
 
-def validate_token_parameters(params, scope=None):
+def validate_token_parameters(params):
     """Ensures token precence, token type, expiration and scope in params."""
     if 'error' in params:
         raise_from_error(params.get('error'), params)
@@ -313,13 +389,21 @@ def validate_token_parameters(params, scope=None):
         raise MissingTokenError(description="Missing access token parameter.")
 
     if not 'token_type' in params:
-        raise MissingTokenTypeError()
+        if os.environ.get('OAUTHLIB_STRICT_TOKEN_TYPE'):
+            raise MissingTokenTypeError()
 
     # If the issued access token scope is different from the one requested by
     # the client, the authorization server MUST include the "scope" response
     # parameter to inform the client of the actual scope granted.
-    # http://tools.ietf.org/html/rfc6749#section-3.3
-    new_scope = params.get('scope', None)
-    scope = scope_to_list(scope)
-    if scope and new_scope and set(scope) != set(new_scope):
-        raise Warning("Scope has changed to %s." % new_scope)
+    # https://tools.ietf.org/html/rfc6749#section-3.3
+    if params.scope_changed:
+        message = 'Scope has changed from "{old}" to "{new}".'.format(
+            old=params.old_scope, new=params.scope,
+        )
+        scope_changed.send(message=message, old=params.old_scopes, new=params.scopes)
+        if not os.environ.get('OAUTHLIB_RELAX_TOKEN_SCOPE', None):
+            w = Warning(message)
+            w.token = params
+            w.old_scope = params.old_scopes
+            w.new_scope = params.scopes
+            raise w

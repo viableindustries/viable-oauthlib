@@ -39,7 +39,7 @@ tokens which unless you are certain you need them, are a bad idea.
         # Validate request
         uri = 'https://example.com/token'
         http_method = 'POST'
-        body = 'authorization_code=somerandomstring&'
+        body = 'code=somerandomstring&'
                'grant_type=authorization_code&'
         # Clients authenticate through a method of your choosing, for example
         # using HTTP Basic Authentication
@@ -63,10 +63,7 @@ tokens which unless you are certain you need them, are a bad idea.
             'access_token': 'sldafh309sdf',
             'refresh_token': 'alsounguessablerandomstring',
             'expires_in': 3600,
-            'scopes': [
-                'https://example.com/userProfile',
-                'https://example.com/pictures'
-            ],
+            'scope': 'https://example.com/userProfile https://example.com/pictures',
             'token_type': 'Bearer'
         }
         # body will contain an error code and possibly an error description if

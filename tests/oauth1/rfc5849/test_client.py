@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
-from oauthlib.oauth1 import SIGNATURE_RSA, SIGNATURE_PLAINTEXT
-from oauthlib.oauth1 import SIGNATURE_TYPE_BODY, SIGNATURE_TYPE_QUERY
+from oauthlib.common import Request
+from oauthlib.oauth1 import (SIGNATURE_PLAINTEXT, SIGNATURE_RSA,
+                             SIGNATURE_TYPE_BODY, SIGNATURE_TYPE_QUERY)
 from oauthlib.oauth1.rfc5849 import Client, bytes_type
+
 from ...unittest import TestCase
 
 
@@ -41,12 +43,12 @@ class ClientConstructorTests(TestCase):
 
     def test_give_explicit_timestamp(self):
         client = Client('client-key', timestamp='1')
-        params = dict(client.get_oauth_params())
+        params = dict(client.get_oauth_params(Request('http://example.com')))
         self.assertEqual(params['oauth_timestamp'], '1')
 
     def test_give_explicit_nonce(self):
         client = Client('client-key', nonce='1')
-        params = dict(client.get_oauth_params())
+        params = dict(client.get_oauth_params(Request('http://example.com')))
         self.assertEqual(params['oauth_nonce'], '1')
 
     def test_decoding(self):
@@ -59,6 +61,10 @@ class ClientConstructorTests(TestCase):
         for k, v in headers.items():
             self.assertIsInstance(k, bytes_type)
             self.assertIsInstance(v, bytes_type)
+
+    def test_rsa(self):
+        client = Client('client_key', signature_method=SIGNATURE_RSA)
+        self.assertIsNone(client.rsa_key)  # don't need an RSA key to instantiate
 
 
 class SignatureMethodTest(TestCase):
@@ -95,7 +101,6 @@ class SignatureMethodTest(TestCase):
                    'HJILzZ8iFOvS6w5E%3D"')
         self.assertEqual(h['Authorization'], correct)
 
-
     def test_plaintext_method(self):
         client = Client('client_key',
                         signature_method=SIGNATURE_PLAINTEXT,
@@ -114,6 +119,9 @@ class SignatureMethodTest(TestCase):
         client = Client('client_key', signature_method='invalid')
         self.assertRaises(ValueError, client.sign, 'http://example.com')
 
+    def test_rsa_no_key(self):
+        client = Client('client_key', signature_method=SIGNATURE_RSA)
+        self.assertRaises(ValueError, client.sign, 'http://example.com')
 
     def test_register_method(self):
         Client.register_signature_method('PIZZA',
@@ -126,7 +134,7 @@ class SignatureMethodTest(TestCase):
 
         u, h, b = client.sign('http://example.com')
 
-        self.assertEquals(h['Authorization'], (
+        self.assertEqual(h['Authorization'], (
             'OAuth oauth_nonce="abc", oauth_timestamp="1234567890", '
             'oauth_version="1.0", oauth_signature_method="PIZZA", '
             'oauth_consumer_key="client_key", '

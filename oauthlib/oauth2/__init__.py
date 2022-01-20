@@ -13,6 +13,7 @@ from .rfc6749.clients import WebApplicationClient
 from .rfc6749.clients import MobileApplicationClient
 from .rfc6749.clients import LegacyApplicationClient
 from .rfc6749.clients import BackendApplicationClient
+from .rfc6749.clients import ServiceApplicationClient
 from .rfc6749.endpoints import AuthorizationEndpoint
 from .rfc6749.endpoints import TokenEndpoint
 from .rfc6749.endpoints import ResourceEndpoint
@@ -22,11 +23,12 @@ from .rfc6749.endpoints import WebApplicationServer
 from .rfc6749.endpoints import MobileApplicationServer
 from .rfc6749.endpoints import LegacyApplicationServer
 from .rfc6749.endpoints import BackendApplicationServer
-from .rfc6749.errors import *
+from .rfc6749.errors import AccessDeniedError, AccountSelectionRequired, ConsentRequired, FatalClientError, FatalOpenIDClientError, InsecureTransportError, InteractionRequired, InvalidClientError, InvalidClientIdError, InvalidGrantError, InvalidRedirectURIError, InvalidRequestError, InvalidRequestFatalError, InvalidScopeError, LoginRequired, MismatchingRedirectURIError, MismatchingStateError, MissingClientIdError, MissingCodeError, MissingRedirectURIError, MissingResponseTypeError, MissingTokenError, MissingTokenTypeError, OAuth2Error, OpenIDClientError, ServerError, TemporarilyUnavailableError, TokenExpiredError, UnauthorizedClientError, UnsupportedGrantTypeError, UnsupportedResponseTypeError, UnsupportedTokenTypeError
 from .rfc6749.grant_types import AuthorizationCodeGrant
 from .rfc6749.grant_types import ImplicitGrant
 from .rfc6749.grant_types import ResourceOwnerPasswordCredentialsGrant
 from .rfc6749.grant_types import ClientCredentialsGrant
 from .rfc6749.grant_types import RefreshTokenGrant
 from .rfc6749.request_validator import RequestValidator
-from .rfc6749.tokens import BearerToken
+from .rfc6749.tokens import BearerToken, OAuth2Token
+from .rfc6749.utils import is_secure_transport

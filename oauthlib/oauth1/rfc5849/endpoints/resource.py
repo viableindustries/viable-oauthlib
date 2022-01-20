@@ -8,13 +8,16 @@ OAuth 1.0 RFC 5849.
 """
 from __future__ import absolute_import, unicode_literals
 
-from oauthlib.common import log
+import logging
 
-from .base import BaseEndpoint
 from .. import errors
+from .base import BaseEndpoint
+
+log = logging.getLogger(__name__)
 
 
 class ResourceEndpoint(BaseEndpoint):
+
     """An endpoint responsible for protecting resources.
 
     Typical use is to instantiate with a request validator and invoke the
@@ -50,7 +53,7 @@ class ResourceEndpoint(BaseEndpoint):
     """
 
     def validate_protected_resource_request(self, uri, http_method='GET',
-            body=None, headers=None, realms=None):
+                                            body=None, headers=None, realms=None):
         """Create a request token response, with a new request token if valid.
 
         :param uri: The full URI of the token request.
@@ -95,7 +98,7 @@ class ResourceEndpoint(BaseEndpoint):
         #
         # Note that early exit would enable client enumeration
         valid_client = self.request_validator.validate_client_key(
-                request.client_key, request)
+            request.client_key, request)
         if not valid_client:
             request.client_key = self.request_validator.dummy_client
 
@@ -116,7 +119,7 @@ class ResourceEndpoint(BaseEndpoint):
         # However they could be seen as a scope or realm to which the
         # client has access and as such every client should be checked
         # to ensure it is authorized access to that scope or realm.
-        # .. _`realm`: http://tools.ietf.org/html/rfc2617#section-1.2
+        # .. _`realm`: https://tools.ietf.org/html/rfc2617#section-1.2
         #
         # Note that early exit would enable client realm access enumeration.
         #
@@ -134,10 +137,17 @@ class ResourceEndpoint(BaseEndpoint):
         # that the realm is now tied to the access token and not provided by
         # the client.
         valid_realm = self.request_validator.validate_realms(request.client_key,
-                request.resource_owner_key, request, uri=request.uri,
-                realms=realms)
+                                                             request.resource_owner_key, request, uri=request.uri,
+                                                             realms=realms)
 
         valid_signature = self._check_signature(request)
+
+        # log the results to the validator_log
+        # this lets us handle internal reporting and analysis
+        request.validator_log['client'] = valid_client
+        request.validator_log['resource_owner'] = valid_resource_owner
+        request.validator_log['realm'] = valid_realm
+        request.validator_log['signature'] = valid_signature
 
         # We delay checking validity until the very end, using dummy values for
         # calculations and fetching secrets/keys to ensure the flow of every

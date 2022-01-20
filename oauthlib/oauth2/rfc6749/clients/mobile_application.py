@@ -8,12 +8,12 @@ for consuming and providing OAuth 2.0 RFC6749.
 """
 from __future__ import absolute_import, unicode_literals
 
+from ..parameters import parse_implicit_response, prepare_grant_uri
 from .base import Client
-from ..parameters import prepare_grant_uri
-from ..parameters import parse_implicit_response
 
 
 class MobileApplicationClient(Client):
+
     """A public client utilizing the implicit code grant workflow.
 
     A user-agent-based application is a public client in which the
@@ -47,7 +47,7 @@ class MobileApplicationClient(Client):
     """
 
     def prepare_request_uri(self, uri, redirect_uri=None, scope=None,
-            state=None, **kwargs):
+                            state=None, **kwargs):
         """Prepare the implicit grant request URI.
 
         The client constructs the request URI by adding the following
@@ -85,14 +85,14 @@ class MobileApplicationClient(Client):
             >>> client.prepare_request_uri('https://example.com', foo='bar')
             'https://example.com?client_id=your_id&response_type=token&foo=bar'
 
-        .. _`Appendix B`: http://tools.ietf.org/html/rfc6749#appendix-B
-        .. _`Section 2.2`: http://tools.ietf.org/html/rfc6749#section-2.2
-        .. _`Section 3.1.2`: http://tools.ietf.org/html/rfc6749#section-3.1.2
-        .. _`Section 3.3`: http://tools.ietf.org/html/rfc6749#section-3.3
-        .. _`Section 10.12`: http://tools.ietf.org/html/rfc6749#section-10.12
+        .. _`Appendix B`: https://tools.ietf.org/html/rfc6749#appendix-B
+        .. _`Section 2.2`: https://tools.ietf.org/html/rfc6749#section-2.2
+        .. _`Section 3.1.2`: https://tools.ietf.org/html/rfc6749#section-3.1.2
+        .. _`Section 3.3`: https://tools.ietf.org/html/rfc6749#section-3.3
+        .. _`Section 10.12`: https://tools.ietf.org/html/rfc6749#section-10.12
         """
         return prepare_grant_uri(uri, self.client_id, 'token',
-                redirect_uri=redirect_uri, state=state, scope=scope, **kwargs)
+                                 redirect_uri=redirect_uri, state=state, scope=scope, **kwargs)
 
     def parse_request_uri_response(self, uri, state=None, scope=None):
         """Parse the response URI fragment.
@@ -107,7 +107,7 @@ class MobileApplicationClient(Client):
         :param state: The state provided in the authorization request.
         :param scope: The scopes provided in the authorization request.
         :return: Dictionary of token parameters.
-        :raises: Warning if scope has changed. OAuth2Error if response is invalid.
+        :raises: OAuth2Error if response is invalid.
 
         A successful response should always contain
 
@@ -157,20 +157,16 @@ class MobileApplicationClient(Client):
                 File "oauthlib/oauth2/rfc6749/parameters.py", line 197, in parse_implicit_response
                     raise ValueError("Mismatching or missing state in params.")
             ValueError: Mismatching or missing state in params.
-            >>> client.parse_request_uri_response(response_uri, scope=['other'])
-            Traceback (most recent call last):
-                File "<stdin>", line 1, in <module>
-                File "oauthlib/oauth2/rfc6749/__init__.py", line 598, in parse_request_uri_response
-                    **scope**
-                File "oauthlib/oauth2/rfc6749/parameters.py", line 199, in parse_implicit_response
-                    validate_token_parameters(params, scope)
-                File "oauthlib/oauth2/rfc6749/parameters.py", line 285, in validate_token_parameters
-                    raise Warning("Scope has changed to %s." % new_scope)
-            Warning: Scope has changed to [u'hello', u'world'].
+            >>> def alert_scope_changed(message, old, new):
+            ...     print(message, old, new)
+            ...
+            >>> oauthlib.signals.scope_changed.connect(alert_scope_changed)
+            >>> client.parse_request_body_response(response_body, scope=['other'])
+            ('Scope has changed from "other" to "hello world".', ['other'], ['hello', 'world'])
 
-        .. _`Section 7.1`: http://tools.ietf.org/html/rfc6749#section-7.1
-        .. _`Section 3.3`: http://tools.ietf.org/html/rfc6749#section-3.3
+        .. _`Section 7.1`: https://tools.ietf.org/html/rfc6749#section-7.1
+        .. _`Section 3.3`: https://tools.ietf.org/html/rfc6749#section-3.3
         """
         self.token = parse_implicit_response(uri, state=state, scope=scope)
-        self._populate_attributes(self.token)
+        self.populate_token_attributes(self.token)
         return self.token

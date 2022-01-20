@@ -3,16 +3,20 @@
 oauthlib.oauth2.rfc6749.grant_types
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
-from __future__ import unicode_literals, absolute_import
-import json
-from oauthlib.common import log
+from __future__ import absolute_import, unicode_literals
 
-from .base import GrantTypeBase
+import json
+import logging
+
 from .. import errors
 from ..request_validator import RequestValidator
+from .base import GrantTypeBase
+
+log = logging.getLogger(__name__)
 
 
 class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
+
     """`Resource Owner Password Credentials Grant`_
 
     The resource owner password credentials grant type is suitable in
@@ -63,11 +67,8 @@ class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
             the resource owner credentials, and if valid, issues an access
             token.
 
-    .. _`Resource Owner Password Credentials Grant`: http://tools.ietf.org/html/rfc6749#section-4.3
+    .. _`Resource Owner Password Credentials Grant`: https://tools.ietf.org/html/rfc6749#section-4.3
     """
-
-    def __init__(self, request_validator=None):
-        self.request_validator = request_validator or RequestValidator()
 
     def create_token_response(self, request, token_handler):
         """Return token or error in json format.
@@ -78,8 +79,8 @@ class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
         authentication or is invalid, the authorization server returns an
         error response as described in `Section 5.2`_.
 
-        .. _`Section 5.1`: http://tools.ietf.org/html/rfc6749#section-5.1
-        .. _`Section 5.2`: http://tools.ietf.org/html/rfc6749#section-5.2
+        .. _`Section 5.1`: https://tools.ietf.org/html/rfc6749#section-5.1
+        .. _`Section 5.2`: https://tools.ietf.org/html/rfc6749#section-5.2
         """
         headers = {
             'Content-Type': 'application/json',
@@ -101,7 +102,12 @@ class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
             log.debug('Client error in token request, %s.', e)
             return headers, e.json, e.status_code
 
-        token = token_handler.create_token(request, refresh_token=True)
+        token = token_handler.create_token(request, self.refresh_token, save_token=False)
+
+        for modifier in self._token_modifiers:
+            token = modifier(token)
+        self.request_validator.save_token(token, request)
+
         log.debug('Issuing token %r to client id %r (%r) and username %s.',
                   token, request.client_id, request.client, request.username)
         return headers, json.dumps(token), 200
@@ -147,35 +153,37 @@ class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
         brute force attacks (e.g., using rate-limitation or generating
         alerts).
 
-        .. _`Section 3.3`: http://tools.ietf.org/html/rfc6749#section-3.3
-        .. _`Section 3.2.1`: http://tools.ietf.org/html/rfc6749#section-3.2.1
+        .. _`Section 3.3`: https://tools.ietf.org/html/rfc6749#section-3.3
+        .. _`Section 3.2.1`: https://tools.ietf.org/html/rfc6749#section-3.2.1
         """
+        for validator in self.custom_validators.pre_token:
+            validator(request)
+
         for param in ('grant_type', 'username', 'password'):
-            if not getattr(request, param):
+            if not getattr(request, param, None):
                 raise errors.InvalidRequestError(
-                        'Request is missing %s parameter.' % param, request=request)
+                    'Request is missing %s parameter.' % param, request=request)
 
         for param in ('grant_type', 'username', 'password', 'scope'):
             if param in request.duplicate_params:
-                raise errors.InvalidRequestError(state=request.state,
-                        description='Duplicate %s parameter.' % param, request=request)
+                raise errors.InvalidRequestError(description='Duplicate %s parameter.' % param, request=request)
 
         # This error should rarely (if ever) occur if requests are routed to
         # grant type handlers based on the grant_type parameter.
         if not request.grant_type == 'password':
             raise errors.UnsupportedGrantTypeError(request=request)
 
-        log.debug('Validating username %s and password %s.',
-                  request.username, request.password)
+        log.debug('Validating username %s.', request.username)
         if not self.request_validator.validate_user(request.username,
-                request.password, request.client, request):
-            raise errors.InvalidGrantError('Invalid credentials given.', request=request)
+                                                    request.password, request.client, request):
+            raise errors.InvalidGrantError(
+                'Invalid credentials given.', request=request)
         else:
             if not hasattr(request.client, 'client_id'):
                 raise NotImplementedError(
-                        'Validate user must set the '
-                        'request.client.client_id attribute '
-                        'in authenticate_client.')
+                    'Validate user must set the '
+                    'request.client.client_id attribute '
+                    'in authenticate_client.')
         log.debug('Authorizing access to user %r.', request.user)
 
         # Ensure client is authorized use of this grant type
@@ -184,3 +192,6 @@ class ResourceOwnerPasswordCredentialsGrant(GrantTypeBase):
         if request.client:
             request.client_id = request.client_id or request.client.client_id
         self.validate_scopes(request)
+
+        for validator in self.custom_validators.post_token:
+            validator(request)

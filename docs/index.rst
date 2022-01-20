@@ -9,18 +9,22 @@ Welcome to OAuthLib's documentation!
 If you can't find what you need or have suggestions for improvement, don't
 hesitate to open a `new issue on GitHub`_!
 
-For news and discussions please check out our `G+ OAuthLib community`_.
+Check out :doc:`error_reporting` for details on how to be an awesome bug reporter.
 
-.. _`new issue on GitHub`: https://github.com/idan/oauthlib/issues/new
-.. _`G+ OAuthLib community`: https://plus.google.com/communities/101889017375384052571
+For news and discussions please head over to our `Gitter OAuthLib community`_.
+
+.. _`new issue on GitHub`: https://github.com/oauthlib/oauthlib/issues/new
+.. _`Gitter OAuthLib community`: https://gitter.im/oauthlib/Lobby
 
 .. toctree::
    :maxdepth: 1
 
    installation
-   feature_matrix
    faq
+   feature_matrix
+   error_reporting
    contributing
+   release_process
    oauth_1_versus_oauth_2
 
 .. toctree::
@@ -28,6 +32,7 @@ For news and discussions please check out our `G+ OAuthLib community`_.
 
    oauth1/oauth1
    oauth2/oauth2
+   oauth2/oidc
 
 Indices and tables
 ==================

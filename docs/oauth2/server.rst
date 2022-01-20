@@ -6,8 +6,10 @@ OAuthLib is a dependency free library that may be used with any web
 framework. That said, there are framework specific helper libraries
 to make your life easier.
 
-- For Django there is `django-oauth-toolkit`_.
-- For Flask there is `flask-oauthlib`_.
+- Django `django-oauth-toolkit`_
+- Flask `flask-oauthlib`_
+- Pyramid `pyramid-oauthlib`_
+- Bottle `bottle-oauthlib`_
 
 If there is no support for your favourite framework and you are interested
 in providing it then you have come to the right place. OAuthLib can handle
@@ -17,6 +19,8 @@ as well as provide an interface for a backend to store tokens, clients, etc.
 
 .. _`django-oauth-toolkit`: https://github.com/evonove/django-oauth-toolkit
 .. _`flask-oauthlib`: https://github.com/lepture/flask-oauthlib
+.. _`pyramid-oauthlib`: https://github.com/tilgovi/pyramid-oauthlib
+.. _`bottle-oauthlib`: https://github.com/thomsonreuters/bottle-oauthlib
 
 .. contents:: Tutorial Contents
     :depth: 3
@@ -33,7 +37,7 @@ translate to other ORMs such as SQLAlchemy and the Appengine Datastore.
 User (or Resource Owner)
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-The user of your site which resources might be access by clients upon
+The user of your site which resources might be accessed by clients upon
 authorization from the user. In our example we will re-use the User
 model provided in django.contrib.auth.models. How the user authenticates
 is orthogonal from OAuth and may be any way you prefer::
@@ -262,12 +266,12 @@ can be seen below.
 
     class MyRequestValidator(RequestValidator):
 
-    def validate_client_id(self, client_id, request):
-    try:
-        Client.objects.get(client_id=client_id)
-        return True
-    except Client.DoesNotExist:
-        return False
+        def validate_client_id(self, client_id, request):
+            try:
+                Client.objects.get(client_id=client_id)
+                return True
+            except Client.DoesNotExist:
+                return False
 
 The full API you will need to implement is available in the
 :doc:`RequestValidator <validator>` section. You might not need to implement
@@ -275,7 +279,7 @@ all methods depending on which grant types you wish to support. A skeleton
 validator listing the methods required for the WebApplicationServer is
 available in the `examples`_ folder on GitHub.
 
-..  _`examples`: https://github.com/idan/oauthlib/blob/master/examples/skeleton_oauth2_web_application_server.py
+..  _`examples`: https://github.com/oauthlib/oauthlib/blob/master/examples/skeleton_oauth2_web_application_server.py
 
 Relevant sections include:
 
@@ -327,63 +331,63 @@ The example using Django but should be transferable to any framework.
     # Handles GET and POST requests to /authorize
     class AuthorizationView(View):
 
-    def __init__(self):
-        # Using the server from previous section
-        self._authorization_endpoint = server
-
-    def get(self, request):
-        # You need to define extract_params and make sure it does not
-        # include file like objects waiting for input. In Django this
-        # is request.META['wsgi.input'] and request.META['wsgi.errors']
-        uri, http_method, body, headers = extract_params(request)
-
-        try:
-            scopes, credentials = self._authorization_endpoint.validate_authorization_request(
-                uri, http_method, body, headers)
-
-            # Not necessarily in session but they need to be
-            # accessible in the POST view after form submit.
-            request.session['oauth2_credentials'] = credentials
-
-            # You probably want to render a template instead.
-            response = HttpResponse()
-            response.write('<h1> Authorize access to %s </h1>' % client_id)
-            response.write('<form method="POST" action="/authorize">')
-            for scope in scopes or []:
-                response.write('<input type="checkbox" name="scopes" ' + 
-                'value="%s"/> %s' % (scope, scope))
-                response.write('<input type="submit" value="Authorize"/>')
-            return response
-
-        # Errors that should be shown to the user on the provider website
-        except errors.FatalClientError as e:
-            return response_from_error(e)
-
-        # Errors embedded in the redirect URI back to the client
-        except errors.OAuth2Error as e:
-            return HttpResponseRedirect(e.in_uri(e.redirect_uri))
-
-    @csrf_exempt
-    def post(self, request):
-        uri, http_method, body, headers = extract_params(request)
-
-        # The scopes the user actually authorized, i.e. checkboxes
-        # that were selected.
-        scopes = request.POST.getlist(['scopes'])
-
-        # Extra credentials we need in the validator
-        credentials = {'user': request.user}
-
-        # The previously stored (in authorization GET view) credentials
-        credentials.update(request.session.get('oauth2_credentials', {}))
-
-        try:
-            headers, body, status = self._authorization_endpoint.create_authorization_response(
-            uri, http_method, body, headers, scopes, credentials)
-            return response_from_return(headers, body, status)
-
-        except errors.FatalClientError as e:
-            return response_from_error(e)
+        def __init__(self):
+            # Using the server from previous section
+            self._authorization_endpoint = server
+    
+        def get(self, request):
+            # You need to define extract_params and make sure it does not
+            # include file like objects waiting for input. In Django this
+            # is request.META['wsgi.input'] and request.META['wsgi.errors']
+            uri, http_method, body, headers = extract_params(request)
+    
+            try:
+                scopes, credentials = self._authorization_endpoint.validate_authorization_request(
+                    uri, http_method, body, headers)
+    
+                # Not necessarily in session but they need to be
+                # accessible in the POST view after form submit.
+                request.session['oauth2_credentials'] = credentials
+    
+                # You probably want to render a template instead.
+                response = HttpResponse()
+                response.write('<h1> Authorize access to %s </h1>' % client_id)
+                response.write('<form method="POST" action="/authorize">')
+                for scope in scopes or []:
+                    response.write('<input type="checkbox" name="scopes" ' + 
+                    'value="%s"/> %s' % (scope, scope))
+                    response.write('<input type="submit" value="Authorize"/>')
+                return response
+    
+            # Errors that should be shown to the user on the provider website
+            except errors.FatalClientError as e:
+                return response_from_error(e)
+    
+            # Errors embedded in the redirect URI back to the client
+            except errors.OAuth2Error as e:
+                return HttpResponseRedirect(e.in_uri(e.redirect_uri))
+    
+        @csrf_exempt
+        def post(self, request):
+            uri, http_method, body, headers = extract_params(request)
+    
+            # The scopes the user actually authorized, i.e. checkboxes
+            # that were selected.
+            scopes = request.POST.getlist(['scopes'])
+    
+            # Extra credentials we need in the validator
+            credentials = {'user': request.user}
+    
+            # The previously stored (in authorization GET view) credentials
+            credentials.update(request.session.get('oauth2_credentials', {}))
+    
+            try:
+                headers, body, status = self._authorization_endpoint.create_authorization_response(
+                uri, http_method, body, headers, scopes, credentials)
+                return response_from_return(headers, body, status)
+    
+            except errors.FatalClientError as e:
+                return response_from_error(e)
 
     # Handles requests to /token
     class TokenView(View):
@@ -405,14 +409,14 @@ The example using Django but should be transferable to any framework.
             # All requests to /token will return a json response, no redirection.
             return response_from_return(headers, body, status)
 
-        def response_from_return(headers, body, status):
-            response = HttpResponse(content=body, status=status)
-            for k, v in headers.items():
-                response[k] = v
-            return response
+    def response_from_return(headers, body, status):
+        response = HttpResponse(content=body, status=status)
+        for k, v in headers.items():
+            response[k] = v
+        return response
 
-        def response_from_error(e)
-            return HttpResponseBadRequest('Evil client is unable to send a proper request. Error is: ' + e.description)
+    def response_from_error(e)
+        return HttpResponseBadRequest('Evil client is unable to send a proper request. Error is: ' + e.description)
 
 
 5. Protect your APIs using scopes
@@ -492,7 +496,7 @@ at runtime by a function, rather then by a list.
 Drop a line in our `G+ community`_ or open a `GitHub issue`_ =)
 
 .. _`G+ community`: https://plus.google.com/communities/101889017375384052571
-.. _`GitHub issue`: https://github.com/idan/oauthlib/issues/new
+.. _`GitHub issue`: https://github.com/oauthlib/oauthlib/issues/new
 
 If you run into issues it can be helpful to enable debug logging.
 

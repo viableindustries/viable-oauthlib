@@ -1,11 +1,12 @@
-from __future__ import unicode_literals, absolute_import
+from __future__ import absolute_import, unicode_literals
 
-from mock import MagicMock, ANY
-from ....unittest import TestCase
+from mock import ANY, MagicMock
 
-from oauthlib.oauth1.rfc5849 import Client
 from oauthlib.oauth1 import RequestValidator
+from oauthlib.oauth1.rfc5849 import Client
 from oauthlib.oauth1.rfc5849.endpoints import ResourceEndpoint
+
+from ....unittest import TestCase
 
 
 class ResourceEndpointTest(TestCase):
@@ -50,18 +51,33 @@ class ResourceEndpointTest(TestCase):
         v, r = self.endpoint.validate_protected_resource_request(
                 self.uri, headers=self.headers)
         self.assertFalse(v)
+        # the validator log should have `False` values
+        self.assertFalse(r.validator_log['client'])
+        self.assertTrue(r.validator_log['realm'])
+        self.assertTrue(r.validator_log['resource_owner'])
+        self.assertTrue(r.validator_log['signature'])
 
     def test_validate_access_token(self):
         self.validator.validate_access_token.return_value = False
         v, r = self.endpoint.validate_protected_resource_request(
                 self.uri, headers=self.headers)
         self.assertFalse(v)
+        # the validator log should have `False` values
+        self.assertTrue(r.validator_log['client'])
+        self.assertTrue(r.validator_log['realm'])
+        self.assertFalse(r.validator_log['resource_owner'])
+        self.assertTrue(r.validator_log['signature'])
 
     def test_validate_realms(self):
         self.validator.validate_realms.return_value = False
         v, r = self.endpoint.validate_protected_resource_request(
                 self.uri, headers=self.headers)
         self.assertFalse(v)
+        # the validator log should have `False` values
+        self.assertTrue(r.validator_log['client'])
+        self.assertFalse(r.validator_log['realm'])
+        self.assertTrue(r.validator_log['resource_owner'])
+        self.assertTrue(r.validator_log['signature'])
 
     def test_validate_signature(self):
         client = Client('foo',
@@ -71,6 +87,11 @@ class ResourceEndpointTest(TestCase):
         v, r = self.endpoint.validate_protected_resource_request(
                 self.uri, headers=headers)
         self.assertFalse(v)
+        # the validator log should have `False` values
+        self.assertTrue(r.validator_log['client'])
+        self.assertTrue(r.validator_log['realm'])
+        self.assertTrue(r.validator_log['resource_owner'])
+        self.assertFalse(r.validator_log['signature'])
 
     def test_valid_request(self):
         v, r = self.endpoint.validate_protected_resource_request(
@@ -79,3 +100,5 @@ class ResourceEndpointTest(TestCase):
         self.validator.validate_timestamp_and_nonce.assert_called_once_with(
              self.client.client_key, ANY, ANY, ANY,
              access_token=self.client.resource_owner_key)
+        # everything in the validator_log should be `True`
+        self.assertTrue(all(r.validator_log.items()))
