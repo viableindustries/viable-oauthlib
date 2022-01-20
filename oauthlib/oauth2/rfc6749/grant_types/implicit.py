@@ -241,7 +241,7 @@ class ImplicitGrant(GrantTypeBase):
             token = modifier(token, token_handler, request)
         self.request_validator.save_token(token, request)
         return self.prepare_authorization_response(
-            request, token, {}, None, 302)
+            request, token, {}, None, 200)
 
     def validate_authorization_request(self, request):
         return self.validate_token_request(request)
